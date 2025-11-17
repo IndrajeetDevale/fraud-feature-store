@@ -1,0 +1,5 @@
+user_id,amount,event_type,timestamp,device_id
+u1,120,payment,2025-01-01T10:00:00Z,d1
+u1,200,payment,2025-01-01T10:05:00Z,d1
+u2,50,payment,2025-01-01T10:10:00Z,d2
+u3,400,withdrawal,2025-01-01T10:11:00Z,d3
