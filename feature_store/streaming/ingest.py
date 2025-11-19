@@ -1,5 +1,7 @@
 from datetime import datetime
 
+from feature_store.online_store.store import update_user_features, get_user_features
+
 REQUIRED_FIELDS = ["user_id", "amount", "event_type", "timestamp", "device_id"]
 
 class EventValidationError(Exception):
@@ -41,6 +43,14 @@ def demo():
     cleaned_event = process_event(sample_event)
     print("Cleaned event:")
     print(cleaned_event)
+
+    features = update_user_features(cleaned_event)
+    print("Updated online features for user:")
+    print(features)
+
+    fetched = get_user_features("u1")
+    print("Fetched user features from online store:")
+    print(fetched)
 
 if __name__ == "__main__":
     demo()
