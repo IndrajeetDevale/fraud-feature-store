@@ -1,96 +1,59 @@
 from datetime import datetime
-import json
-import os
-from typing import Dict, Any
+from .sqlite_store import init_db, write_features, read_features
 
-STORE_PATH = "data/online/online_store.json"
+init_db()
 
-ONLINE_FEATURES: Dict[str, Dict[str, Any]] = {}
-
-def _serialize_timestamp(value):
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return value
-
-def _deserialize_timestamp(value):
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value)
-        except ValueError:
-            return value
-    
-    return value
-
-def _load_store():
-    if not os.path.exists(STORE_PATH):
-        return {}
-    
-    with open(STORE_PATH, "r") as f:
-        raw = json.load(f)
-    
-    store = {}
-
-    for user_id, features in raw.items():
-        fixed = {}
-        for key, value in features.items():
-            if key.endswith("_timestamp"):
-                fixed[key] = _deserialize_timestamp(value)
-            else:
-                fixed[key] = value
-        store[user_id] = fixed
-    
-    return store
-
-def _save_store(store):
-    os.makedirs(os.path.dirname(STORE_PATH), exist_ok=True)
-
-    to_write = {}
-
-    for user_id, features in store.items():
-        fixed = {}
-        for key, value in features.items():
-            if isinstance(value, datetime):
-                fixed[key] = _serialize_timestamp(value)
-            else:
-                fixed[key] = value
-        to_write[user_id] = fixed
-
-    with open(STORE_PATH, "w") as f:
-        json.dump(to_write, f, indent=2)
-
-def update_user_features(event):
-    global ONLINE_FEATURES
-
-    if not ONLINE_FEATURES:
-        ONLINE_FEATURES = _load_store()
-
-
-    user_id = event["user_id"]
-    amount = event["amount"]
-    timestamp = event["timestamp"]
-
-    current = ONLINE_FEATURES.get(user_id, {
+def update_user_features(user_id, event):
+    existing = read_features(user_id) or {
         "transaction_count": 0,
         "last_amount": 0.0,
         "last_event_timestamp": None
-    })
+    }
 
-    current["transaction_count"] += 1
+    last_device_id = existing.get("last_device_id")
+    device_changed = (last_device_id is not None and last_device_id != event["device_id"])
 
-    current["last_amount"] = amount
-    current["last_event_timestamp"] = timestamp
 
-    ONLINE_FEATURES[user_id] = current
+    current_count = existing.get("transaction_count") or 0
+    current_count += 1
 
-    _save_store(ONLINE_FEATURES)
 
-    return current
+    last_ts_str = existing.get("last_event_timestamp")
+    if last_ts_str:
+        last_ts = datetime.fromisoformat(last_ts_str)
+    else:
+        last_ts = None
+
+    timestamp = event["timestamp"]
+
+    if last_ts:
+        time_delta = (timestamp - last_ts).total_seconds()
+    else:
+        time_delta = None
+
+    high_velocity_flag = (time_delta is not None and time_delta < 30)
+
+
+    if isinstance(timestamp, datetime):
+        ts_str = timestamp.isoformat()
+    else:
+        ts_str = str(timestamp)
+
+
+    features = {
+        "transaction_count": current_count,
+        "last_amount": float(event["amount"]),
+        "last_event_timestamp": ts_str,
+        "last_device_id": event["device_id"],
+        "device_changed": device_changed,
+        "time_since_last_event": time_delta,
+        "high_velocity_flag": high_velocity_flag
+    }
+
+
+
+    write_features(user_id, features)
+    return features
 
 def get_user_features(user_id):
-    global ONLINE_FEATURES
-
-    if not ONLINE_FEATURES:
-        ONLINE_FEATURES = _load_store()
-
-    return ONLINE_FEATURES.get(user_id)
-
+    return read_features(user_id)

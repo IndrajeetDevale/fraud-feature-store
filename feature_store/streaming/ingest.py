@@ -36,15 +36,15 @@ def demo():
         "user_id": "u1",
         "amount": "120",
         "event_type": "payment",
-        "timestamp": "2025-01-01T10:00:00Z",
-        "device_id": "d1"
+        "timestamp": "2025-01-01T10:00:05Z",
+        "device_id": "d2"
     }
 
     cleaned_event = process_event(sample_event)
     print("Cleaned event:")
     print(cleaned_event)
 
-    features = update_user_features(cleaned_event)
+    features = update_user_features(cleaned_event["user_id"], cleaned_event)
     print("Updated online features for user:")
     print(features)
 
